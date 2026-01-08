@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>WebChat</title>
+    <title>개인 설정 가능 익명 웹 채팅</title>
     <style>
         /* 다크 모드 스타일 유지 */
         body { 
@@ -14,7 +14,8 @@
         h1 { color: #BB86FC; }
         
         #settings-area { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
-        #room-controls, #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        #room-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
         #chat-area { 
             height: 300px; 
             border: 1px solid #333; 
@@ -39,7 +40,7 @@
         input[type="color"] {
             border: 1px solid #555;
             border-radius: 4px;
-            height: 34px; /* 높이 맞추기 */
+            height: 34px; 
         }
         
         /* 버튼 디자인 */
@@ -56,11 +57,14 @@
         button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         
         #message-input { flex-grow: 1; }
-        #room-id, #room-password, #nickname { flex-grow: 1; }
+        #room-id, #room-password { flex-grow: 1; }
+        
+        /* 💡 닉네임 입력 그룹 스타일 */
+        #nickname-group { display: flex; gap: 5px; align-items: center; }
     </style>
 </head>
 <body>
-    <h1>W/C</h1>
+    <h1>개인 설정 가능 익명 웹 채팅</h1>
     
     <div id="settings-area">
         <label for="font-size">글꼴 크기 (px):</label>
@@ -75,7 +79,12 @@
     <div id="room-controls">
         <input type="text" id="room-id" placeholder="채팅방 ID (필수)">
         <input type="password" id="room-password" placeholder="비밀번호 (생성 시 설정/입장 시 입력)">
-        <input type="text" id="nickname" placeholder="닉네임 (필수)">
+        
+        <div id="nickname-group">
+            <input type="text" id="nickname" placeholder="닉네임 (필수)" style="flex-grow: 1;">
+            <button onclick="updateNickname()" id="nickname-update-btn" disabled>닉네임 변경</button>
+        </div>
+        
         <button onclick="connectWebSocket()" id="join-btn">방 생성/입장</button>
     </div>
 
@@ -91,7 +100,7 @@
     <script>
         let ws;
         let userNickname = '';
-        let userStyle = {}; // 사용자의 현재 스타일을 저장할 객체
+        let userStyle = {};
         
         const roomIdInput = document.getElementById('room-id');
         const passwordInput = document.getElementById('room-password');
@@ -103,9 +112,10 @@
         
         const fontSizeInput = document.getElementById('font-size');
         const colorPicker = document.getElementById('color-picker');
-        const styleUpdateBtn = document.getElementById('style-update-btn'); // 💡 새 버튼 DOM 추가
+        const styleUpdateBtn = document.getElementById('style-update-btn');
+        const nicknameUpdateBtn = document.getElementById('nickname-update-btn'); // 💡 새 DOM 요소
         
-        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; // Render 서버 주소 사용
+        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com';
 
         function displayMessage(message, type = 'user-msg', style = {}) {
             const msgElement = document.createElement('div');
@@ -127,15 +137,18 @@
             messageInput.disabled = !isConnected;
             sendBtn.disabled = !isConnected;
             
-            // 💡 접속 후에도 스타일 설정은 계속 활성화
+            // 스타일 설정 활성화/비활성화
             fontSizeInput.disabled = !isConnected; 
             colorPicker.disabled = !isConnected;
             styleUpdateBtn.disabled = !isConnected; 
+            
+            // 💡 닉네임 입력 필드와 변경 버튼은 접속 후 활성화
+            nicknameInput.disabled = !isConnected;
+            nicknameUpdateBtn.disabled = !isConnected;
 
             // 방 접속 정보는 접속 후에 비활성화
             roomIdInput.disabled = isConnected;
             passwordInput.disabled = isConnected;
-            nicknameInput.disabled = isConnected;
             joinBtn.disabled = isConnected;
         }
 
@@ -152,7 +165,6 @@
             }
             
             userNickname = nickname;
-            // 💡 접속 시 초기 스타일 설정
             userStyle = { fontSize, color }; 
 
             ws = new WebSocket(defaultWsUrl);
@@ -186,6 +198,8 @@
 
             ws.onclose = function(event) {
                 displayMessage(`[시스템] 연결이 해제되었습니다.`, 'system-msg');
+                // 💡 연결 해제 시 닉네임 입력 필드는 다시 활성화 (새 접속을 위해)
+                nicknameInput.disabled = false;
                 toggleControls(false);
             };
 
@@ -195,7 +209,33 @@
             };
         }
         
-        // 💡 새로운 함수: 채팅 중 스타일 업데이트
+        // 💡 새로운 함수: 닉네임 변경
+        function updateNickname() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert("채팅방에 먼저 접속해야 합니다.");
+                return;
+            }
+            
+            const newNickname = nicknameInput.value.trim();
+            if (!newNickname || newNickname === userNickname) {
+                alert("새로운 닉네임을 입력하거나 기존과 다른 닉네임을 입력해주세요.");
+                return;
+            }
+            
+            const oldNickname = userNickname;
+            userNickname = newNickname; // 로컬 닉네임 먼저 업데이트
+            
+            // 서버에 닉네임 변경 알림
+            const updateRequest = {
+                type: 'update_nickname',
+                payload: {
+                    oldNickname: oldNickname,
+                    newNickname: newNickname
+                }
+            };
+            ws.send(JSON.stringify(updateRequest));
+        }
+
         function updateStyle() {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 alert("채팅방에 먼저 접속해야 합니다.");
@@ -205,10 +245,8 @@
             const newFontSize = fontSizeInput.value.trim() + 'px';
             const newColor = colorPicker.value.trim();
             
-            // 1. 로컬 스타일 변수 업데이트 (다음 메시지부터 적용됨)
             userStyle = { fontSize: newFontSize, color: newColor };
             
-            // 2. 서버에 스타일 변경 알림
             const updateRequest = {
                 type: 'update_style',
                 payload: {
@@ -225,11 +263,10 @@
             const messageText = messageInput.value.trim();
             
             if (ws && ws.readyState === WebSocket.OPEN && messageText) {
-                // 메시지를 보낼 때 현재 userStyle 변수의 최신 값을 사용
                 const chatMessage = {
                     type: 'chat',
                     payload: {
-                        nickname: userNickname,
+                        nickname: userNickname, // 💡 항상 최신 닉네임 사용
                         text: messageText,
                         style: userStyle 
                     }
@@ -242,7 +279,14 @@
         // 엔터 키로 메시지 전송 기능 추가
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                sendMessage();
+                // 닉네임 입력창에 포커스가 있다면 닉네임 변경 버튼 클릭
+                if (document.activeElement === nicknameInput && !nicknameUpdateBtn.disabled) {
+                    updateNickname();
+                } 
+                // 메시지 입력창에 포커스가 있다면 메시지 전송
+                else if (document.activeElement === messageInput) {
+                    sendMessage();
+                }
             }
         });
     </script>
