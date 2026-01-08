@@ -2,28 +2,20 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>비밀번호 방 익명 웹 채팅</title>
-	<style>
-        /* 다크 모드 스타일 시작 */
+    <title>개인 설정 가능 익명 웹 채팅</title>
+    <style>
+        /* 다크 모드 스타일 유지 */
         body { 
             font-family: Arial, sans-serif; 
             padding: 20px;
-            /* 💡 핵심: 배경을 검은색, 텍스트를 흰색으로 변경 */
-            background-color: #121212; /* 아주 어두운 회색 (AMOLED 블랙에 가까움) */
-            color: #E0E0E0; /* 밝은 회색 텍스트 */
+            background-color: #121212; 
+            color: #E0E0E0; 
         }
-        h1 {
-            color: #BB86FC; /* 강조색을 사용하여 제목 강조 */
-        }
+        h1 { color: #BB86FC; }
         
-        #room-controls, #message-controls { 
-            margin-bottom: 10px; 
-            display: flex; 
-            gap: 10px; 
-        }
+        #settings-area, #room-controls { margin-bottom: 10px; display: flex; gap: 10px; }
         #chat-area { 
             height: 300px; 
-            /* 💡 채팅 영역 배경 및 테두리 조정 */
             border: 1px solid #333; 
             background-color: #1E1E1E;
             overflow-y: scroll; 
@@ -31,47 +23,56 @@
             margin-bottom: 10px;
         }
         
-        /* 시스템/오류 메시지 색상 조정 */
         .system-msg { color: #888; font-style: italic; }
-        .error-msg { color: #CF6679; font-weight: bold; } /* 다크 모드 오류색 */
+        .error-msg { color: #CF6679; font-weight: bold; }
         .user-msg { margin-bottom: 5px; }
 
-        /* 입력 필드 (input) 디자인 */
-        input[type="text"], input[type="password"] {
+        /* 입력 필드 디자인 */
+        input[type="text"], input[type="password"], input[type="number"] {
             padding: 8px;
             border: 1px solid #555;
             background-color: #333;
             color: #E0E0E0;
             border-radius: 4px;
         }
+        input[type="color"] {
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
         
-        /* 버튼 (button) 디자인 */
+        /* 버튼 디자인 */
         button {
             padding: 8px 15px;
             border: none;
             border-radius: 4px;
-            background-color: #6200EE; /* 다크 모드 강조색 */
+            background-color: #6200EE; 
             color: white;
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        button:hover:not(:disabled) {
-            background-color: #903EFF;
-        }
-        button:disabled {
-            background-color: #444;
-            color: #888;
-            cursor: not-allowed;
-        }
+        button:hover:not(:disabled) { background-color: #903EFF; }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         
         #message-input { flex-grow: 1; }
         #room-id, #room-password, #nickname { flex-grow: 1; }
-        /* 다크 모드 스타일 끝 */
+        
+        /* 설정 영역 너비 조정 */
+        #settings-area > * {
+            max-width: 150px;
+        }
     </style>
 </head>
 <body>
-    <h1>비밀번호 방 익명 웹 채팅</h1>
+    <h1>개인 설정 가능 익명 웹 채팅</h1>
     
+    <div id="settings-area">
+        <label for="font-size">글꼴 크기 (px):</label>
+        <input type="number" id="font-size" value="16" min="10" max="30">
+        
+        <label for="color-picker">글꼴 색상:</label>
+        <input type="color" id="color-picker" value="#B3E0FF">
+    </div>
+
     <div id="room-controls">
         <input type="text" id="room-id" placeholder="채팅방 ID (필수)">
         <input type="password" id="room-password" placeholder="비밀번호 (생성 시 설정/입장 시 입력)">
@@ -91,6 +92,8 @@
     <script>
         let ws;
         let userNickname = '';
+        let userStyle = {}; // 사용자의 현재 스타일을 저장할 객체
+        
         const roomIdInput = document.getElementById('room-id');
         const passwordInput = document.getElementById('room-password');
         const nicknameInput = document.getElementById('nickname');
@@ -98,12 +101,25 @@
         const messageInput = document.getElementById('message-input');
         const chatArea = document.getElementById('chat-area');
         const sendBtn = document.getElementById('send-btn');
-        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com';
+        
+        const fontSizeInput = document.getElementById('font-size');
+        const colorPicker = document.getElementById('color-picker');
+        
+        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; // 💡 Render 서버 주소 사용
 
-        function displayMessage(message, type = 'user-msg') {
+        function displayMessage(message, type = 'user-msg', style = {}) {
             const msgElement = document.createElement('div');
             msgElement.classList.add(type);
             msgElement.textContent = message;
+            
+            // 💡 스타일 적용: 크기와 색상을 개별적으로 적용
+            if (style.fontSize) {
+                msgElement.style.fontSize = style.fontSize;
+            }
+            if (style.color) {
+                msgElement.style.color = style.color;
+            }
+            
             chatArea.appendChild(msgElement);
             chatArea.scrollTop = chatArea.scrollHeight;
         }
@@ -115,19 +131,26 @@
             passwordInput.disabled = isConnected;
             nicknameInput.disabled = isConnected;
             joinBtn.disabled = isConnected;
+            fontSizeInput.disabled = isConnected; // 설정 입력 비활성화
+            colorPicker.disabled = isConnected;
         }
 
         function connectWebSocket() {
             const roomId = roomIdInput.value.trim();
             const password = passwordInput.value.trim();
             const nickname = nicknameInput.value.trim();
+            const fontSize = fontSizeInput.value.trim() + 'px'; // 'px' 추가
+            const color = colorPicker.value.trim();
             
             if (!roomId || !nickname) {
                 alert('채팅방 ID와 닉네임을 반드시 입력해야 합니다.');
                 return;
             }
-            userNickname = nickname;
             
+            userNickname = nickname;
+            // 💡 현재 사용자의 스타일 저장
+            userStyle = { fontSize, color }; 
+
             ws = new WebSocket(defaultWsUrl);
 
             ws.onopen = function(e) {
@@ -137,7 +160,9 @@
                     payload: {
                         roomId: roomId,
                         password: password,
-                        nickname: userNickname
+                        nickname: userNickname,
+                        // 💡 개인 설정 정보도 함께 전송
+                        style: userStyle 
                     }
                 };
                 ws.send(JSON.stringify(joinRequest));
@@ -148,18 +173,19 @@
                 
                 if (data.type === 'join_success') {
                     displayMessage(`[시스템] ${data.message} 채팅을 시작하세요.`, 'system-msg');
-                    toggleControls(true); // 성공 시 UI 활성화
+                    toggleControls(true);
                 } else if (data.type === 'error') {
                     displayMessage(`[오류] ${data.message}`, 'error-msg');
-                    ws.close(); // 오류 발생 시 연결 해제
+                    ws.close();
                 } else if (data.type === 'chat') {
-                    displayMessage(data.text);
+                    // 💡 메시지와 함께 수신된 스타일 정보로 출력
+                    displayMessage(data.text, 'user-msg', data.style || {});
                 }
             };
 
             ws.onclose = function(event) {
                 displayMessage(`[시스템] 연결이 해제되었습니다.`, 'system-msg');
-                toggleControls(false); // 연결 해제 시 UI 비활성화
+                toggleControls(false);
             };
 
             ws.onerror = function(error) {
@@ -172,12 +198,13 @@
             const messageText = messageInput.value.trim();
             
             if (ws && ws.readyState === WebSocket.OPEN && messageText) {
-                // 메시지를 JSON 형식으로 서버에 전송
+                // 메시지와 현재 사용자의 스타일 정보를 함께 서버에 전송
                 const chatMessage = {
                     type: 'chat',
                     payload: {
                         nickname: userNickname,
-                        text: messageText
+                        text: messageText,
+                        style: userStyle // 💡 스타일 정보 포함
                     }
                 };
                 ws.send(JSON.stringify(chatMessage));
