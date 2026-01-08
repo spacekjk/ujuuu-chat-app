@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>개인 설정 가능 익명 웹 채팅</title>
+    <title>익명 웹 채팅</title>
     <style>
         /* 다크 모드 스타일 유지 */
         body { 
@@ -13,7 +13,8 @@
         }
         h1 { color: #BB86FC; }
         
-        #settings-area, #room-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        #settings-area { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+        #room-controls, #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
         #chat-area { 
             height: 300px; 
             border: 1px solid #333; 
@@ -38,6 +39,7 @@
         input[type="color"] {
             border: 1px solid #555;
             border-radius: 4px;
+            height: 34px; /* 높이 맞추기 */
         }
         
         /* 버튼 디자인 */
@@ -55,11 +57,6 @@
         
         #message-input { flex-grow: 1; }
         #room-id, #room-password, #nickname { flex-grow: 1; }
-        
-        /* 설정 영역 너비 조정 */
-        #settings-area > * {
-            max-width: 150px;
-        }
     </style>
 </head>
 <body>
@@ -67,10 +64,12 @@
     
     <div id="settings-area">
         <label for="font-size">글꼴 크기 (px):</label>
-        <input type="number" id="font-size" value="16" min="10" max="30">
+        <input type="number" id="font-size" value="16" min="10" max="30" disabled>
         
         <label for="color-picker">글꼴 색상:</label>
-        <input type="color" id="color-picker" value="#B3E0FF">
+        <input type="color" id="color-picker" value="#B3E0FF" disabled>
+        
+        <button onclick="updateStyle()" id="style-update-btn" disabled>설정 적용</button> 
     </div>
 
     <div id="room-controls">
@@ -104,15 +103,15 @@
         
         const fontSizeInput = document.getElementById('font-size');
         const colorPicker = document.getElementById('color-picker');
+        const styleUpdateBtn = document.getElementById('style-update-btn'); // 💡 새 버튼 DOM 추가
         
-        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; // 💡 Render 서버 주소 사용
+        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; // Render 서버 주소 사용
 
         function displayMessage(message, type = 'user-msg', style = {}) {
             const msgElement = document.createElement('div');
             msgElement.classList.add(type);
             msgElement.textContent = message;
             
-            // 💡 스타일 적용: 크기와 색상을 개별적으로 적용
             if (style.fontSize) {
                 msgElement.style.fontSize = style.fontSize;
             }
@@ -127,19 +126,24 @@
         function toggleControls(isConnected) {
             messageInput.disabled = !isConnected;
             sendBtn.disabled = !isConnected;
+            
+            // 💡 접속 후에도 스타일 설정은 계속 활성화
+            fontSizeInput.disabled = !isConnected; 
+            colorPicker.disabled = !isConnected;
+            styleUpdateBtn.disabled = !isConnected; 
+
+            // 방 접속 정보는 접속 후에 비활성화
             roomIdInput.disabled = isConnected;
             passwordInput.disabled = isConnected;
             nicknameInput.disabled = isConnected;
             joinBtn.disabled = isConnected;
-            fontSizeInput.disabled = isConnected; // 설정 입력 비활성화
-            colorPicker.disabled = isConnected;
         }
 
         function connectWebSocket() {
             const roomId = roomIdInput.value.trim();
             const password = passwordInput.value.trim();
             const nickname = nicknameInput.value.trim();
-            const fontSize = fontSizeInput.value.trim() + 'px'; // 'px' 추가
+            const fontSize = fontSizeInput.value.trim() + 'px'; 
             const color = colorPicker.value.trim();
             
             if (!roomId || !nickname) {
@@ -148,20 +152,18 @@
             }
             
             userNickname = nickname;
-            // 💡 현재 사용자의 스타일 저장
+            // 💡 접속 시 초기 스타일 설정
             userStyle = { fontSize, color }; 
 
             ws = new WebSocket(defaultWsUrl);
 
             ws.onopen = function(e) {
-                // 서버에 방 입장/생성 요청을 JSON 형식으로 전송
                 const joinRequest = {
                     type: 'join',
                     payload: {
                         roomId: roomId,
                         password: password,
                         nickname: userNickname,
-                        // 💡 개인 설정 정보도 함께 전송
                         style: userStyle 
                     }
                 };
@@ -178,7 +180,6 @@
                     displayMessage(`[오류] ${data.message}`, 'error-msg');
                     ws.close();
                 } else if (data.type === 'chat') {
-                    // 💡 메시지와 함께 수신된 스타일 정보로 출력
                     displayMessage(data.text, 'user-msg', data.style || {});
                 }
             };
@@ -193,18 +194,44 @@
                 toggleControls(false);
             };
         }
+        
+        // 💡 새로운 함수: 채팅 중 스타일 업데이트
+        function updateStyle() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert("채팅방에 먼저 접속해야 합니다.");
+                return;
+            }
+
+            const newFontSize = fontSizeInput.value.trim() + 'px';
+            const newColor = colorPicker.value.trim();
+            
+            // 1. 로컬 스타일 변수 업데이트 (다음 메시지부터 적용됨)
+            userStyle = { fontSize: newFontSize, color: newColor };
+            
+            // 2. 서버에 스타일 변경 알림
+            const updateRequest = {
+                type: 'update_style',
+                payload: {
+                    nickname: userNickname,
+                    style: userStyle
+                }
+            };
+            ws.send(JSON.stringify(updateRequest));
+            
+            displayMessage(`[시스템] 메시지 스타일이 ${newFontSize} / ${newColor}로 변경되었습니다. (다음 메시지부터 적용)`, 'system-msg');
+        }
 
         function sendMessage() {
             const messageText = messageInput.value.trim();
             
             if (ws && ws.readyState === WebSocket.OPEN && messageText) {
-                // 메시지와 현재 사용자의 스타일 정보를 함께 서버에 전송
+                // 메시지를 보낼 때 현재 userStyle 변수의 최신 값을 사용
                 const chatMessage = {
                     type: 'chat',
                     payload: {
                         nickname: userNickname,
                         text: messageText,
-                        style: userStyle // 💡 스타일 정보 포함
+                        style: userStyle 
                     }
                 };
                 ws.send(JSON.stringify(chatMessage));
