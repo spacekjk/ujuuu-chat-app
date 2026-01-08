@@ -158,6 +158,26 @@
 			/* padding을 명시적으로 재설정할 필요는 없습니다. */
 		}
 		
+		/* 💡 로또 추첨기 제목 스타일 */
+		#lotto-generator-area h2 {
+			color: #03DAC6; 
+			border-bottom: 1px solid #444;
+			padding-bottom: 5px;
+			margin-bottom: 10px;
+		}
+		
+		/* 💡 로또 볼 스타일 */
+		.lotto-ball {
+			padding: 5px 10px;
+			margin: 0 4px;
+			font-weight: bold;
+			border-radius: 100%; /* 동그란 모양 */
+			display: inline-block;
+			min-width: 25px; /* 볼 크기 고정 */
+			text-align: center;
+		}
+		
+		
     </style>
 </head>
 <body>
@@ -203,8 +223,45 @@
     </div>
 
 	<div id="info-text">
+		"모든 접속자가 나가면 방은 없어집니다."<br>
         "이 W/C는 대화내용을 수집하지 않으며, 채팅내용도 보호되지 않습니다."
     </div>
+	
+
+	<br>
+	
+    <hr>
+	
+    <div id="lotto-generator-area">
+        <h2>🍀 즐겁게회사다니기 추첨기</h2>
+        <div id="lotto-controls" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center; flex-wrap: wrap;">
+            
+            <label>제외 숫자 1:</label>
+            <input type="number" id="lotto-exclude1" value="" placeholder="1~45" min="1" max="45" style="max-width: 50px;">
+            
+            <label>2:</label>
+            <input type="number" id="lotto-exclude2" value="" placeholder="1~45" min="1" max="45" style="max-width: 50px;">
+            
+			<label> 포함 숫자 1:</label>
+            <input type="number" id="lotto-include1" value="" placeholder="1~45" min="1" max="45" style="max-width: 50px;">
+            
+            <label>2:</label>
+            <input type="number" id="lotto-include2" value="" placeholder="1~45" min="1" max="45" style="max-width: 50px;">
+			
+			
+            <label>게임 수:</label>
+            <input type="number" id="lotto-game-count" value="1" min="1" max="10" style="max-width: 50px;">
+            
+            <button onclick="generateLottoNumbers()" id="generate-lotto-btn">번호 생성</button>
+        </div>
+        
+        <div id="lotto-result" style="font-size: 1.1em; font-weight: bold; padding: 10px; background-color: #333; border-radius: 4px; min-height: 50px;">
+            여기에 로또 번호가 표시됩니다.
+        </div>
+    </div>
+
+  
+	
 
 
     <script>
@@ -227,10 +284,16 @@
         
         const userList = document.getElementById('user-list');
         const userCount = document.getElementById('user-count');
+		
+		// 💡 알림을 위한 새 변수
+		let notificationInterval; // 깜빡임 타이머 저장 변수
+		const originalTitle = document.title; // 페이지의 원래 제목
+		let isConnected = false; // 연결 상태 추적
+		
         
-        // 💡 주의: 배포 시에는 'wss://ujuuu-chat-app.onrender.com'으로 변경해야 합니다.
+        // 💡 주의: 배포 시에는 'ws://ujuuu-chat-app.onrender.com'으로 변경해야 합니다.
 		// 💡 주의:  'ws://localhost:8080'으로 변경해야 합니다.
-        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; 
+        const defaultWsUrl = 'ws://ujuuu-chat-app.onrender.com'; 
 
         function displayMessage(message, type = 'user-msg', style = {}) {
             const msgElement = document.createElement('div');
@@ -317,6 +380,12 @@
                     ws.close();
                 } else if (data.type === 'chat') {
                     displayMessage(data.text, 'user-msg', data.style || {});
+					
+					// 💡 채팅 메시지가 왔을 때 알림 시작
+                    if (data.nickname !== userNickname) { // 본인이 보낸 메시지는 알림 X
+                        startNotification();
+                    }
+					
                 } 
                 else if (data.type === 'user_list') {
                     updateUserList(data.users);
@@ -412,6 +481,172 @@
                 }
             }
         });
+		
+		// 💡 탭 포커스 이벤트 리스너 추가: 사용자가 탭을 다시 열면 알림 중지
+		document.addEventListener('visibilitychange', () => {
+			if (document.visibilityState === 'visible') {
+				stopNotification();
+			}
+		});
+		
+		
+		// 💡 알림 시작 함수: 탭 제목을 변경하여 깜빡이게 만듦
+		function startNotification() {
+			if (document.hidden && !notificationInterval) { // 현재 탭이 숨겨져 있을 때만 작동
+				let toggle = false;
+				notificationInterval = setInterval(() => {
+					document.title = toggle ? "📢 새 메시지 도착!" : originalTitle;
+					toggle = !toggle;
+				}, 1000); // 1초마다 제목 깜빡임
+			}
+		}
+		
+		// 💡 알림 중지 함수: 원래 제목으로 되돌리고 타이머 해제
+		function stopNotification() {
+			if (notificationInterval) {
+				clearInterval(notificationInterval);
+				notificationInterval = null;
+				document.title = originalTitle;
+			}
+		}
+		
+		
+		// =================================================================
+		// 💡 로또 번호 생성 함수 (1~45, 제외 숫자, 다중 게임 지원)
+		// =================================================================
+
+		function generateLottoNumbers() {
+			const MIN_NUM = 1;
+			const MAX_NUM = 45;
+			const PICK_COUNT = 6;
+
+			// 1. 입력 값 및 DOM 요소 가져오기
+			const exclude1 = parseInt(document.getElementById('lotto-exclude1').value) || null;
+			const exclude2 = parseInt(document.getElementById('lotto-exclude2').value) || null;
+			const include1 = parseInt(document.getElementById('lotto-include1').value) || null;
+			const include2 = parseInt(document.getElementById('lotto-include2').value) || null;
+			const gameCount = parseInt(document.getElementById('lotto-game-count').value);
+			const resultDiv = document.getElementById('lotto-result');
+			
+			let errorMsg = '';
+			
+			// 💡 수정: excludes 변수를 함수 시작 지점에 선언 (스코프 확장)
+			const excludes = new Set(); 
+			const includes = new Set(); // 💡 포함 숫자 세트
+
+			// 2. 유효성 검사 및 includes/excludes 정리
+        
+			// 게임 수 검사
+			if (isNaN(gameCount) || gameCount < 1 || gameCount > 10) {
+				errorMsg = '❌ 오류: 추첨 게임 수는 1에서 10 사이의 숫자여야 합니다.';
+			}
+
+			// 포함/제외 숫자 유효성 검사 및 Set 추가
+			const allCustomNums = [
+				{ num: exclude1, set: excludes, name: '제외' },
+				{ num: exclude2, set: excludes, name: '제외' },
+				{ num: include1, set: includes, name: '포함' },
+				{ num: include2, set: includes, name: '포함' }
+			];
+
+			allCustomNums.forEach(item => {
+				if (item.num !== null) {
+					if (item.num < MIN_NUM || item.num > MAX_NUM) {
+						errorMsg = `❌ 오류: ${item.name} 숫자는 1부터 45 사이여야 합니다. (입력 값: ${item.num})`;
+					} else {
+						item.set.add(item.num);
+					}
+				}
+			});
+			
+			// 포함/제외 숫자 중복 검사
+			includes.forEach(incNum => {
+				if (excludes.has(incNum)) {
+					errorMsg = `❌ 오류: 포함 숫자와 제외 숫자가 중복될 수 없습니다. (중복: ${incNum})`;
+				}
+			});
+
+			// 포함 숫자가 6개 초과인지 검사 (현재는 최대 2개이므로, 중복 입력만 체크)
+			if (includes.size > PICK_COUNT) {
+				 errorMsg = `❌ 오류: 포함 숫자는 추첨 개수(${PICK_COUNT}개)를 초과할 수 없습니다.`;
+			}
+			
+			// 남아있는 번호로 추첨이 가능한지 검사
+			const requiredRandomPicks = PICK_COUNT - includes.size;
+			const totalAvailableNumbers = MAX_NUM - MIN_NUM + 1;
+			const unavailableCount = excludes.size + includes.size; // 제외 + 이미 포함된 숫자
+			
+			if ((totalAvailableNumbers - unavailableCount) < requiredRandomPicks) {
+				errorMsg = `❌ 오류: 제외/포함 숫자가 너무 많아 무작위로 ${requiredRandomPicks}개를 채울 수 없습니다.`;
+			}
+			
+			if (errorMsg) {
+				resultDiv.innerHTML = `<span style="color: #CF6679;">${errorMsg}</span>`;
+				return;
+			}
+
+
+			// 3. 로또 번호 생성 (게임 수만큼 반복)
+			let htmlResult = '';
+			
+			for (let game = 1; game <= gameCount; game++) {
+				// A. 무작위 추첨에 사용될 숫자 배열 (포함/제외 모두 제외)
+				const availableNumbers = [];
+				for (let i = MIN_NUM; i <= MAX_NUM; i++) {
+					if (!excludes.has(i) && !includes.has(i)) {
+						availableNumbers.push(i);
+					}
+				}
+				
+				// B. 결과 배열을 포함 숫자로 초기화
+				const pickedNumbers = Array.from(includes); // Set을 배열로 변환
+				
+				// C. 필요한 만큼 무작위 숫자 추가
+				const numToPick = PICK_COUNT - pickedNumbers.length;
+				
+				for (let i = 0; i < numToPick; i++) {
+					// 남은 숫자 중에서 무작위로 인덱스 선택
+					const randomIndex = Math.floor(Math.random() * availableNumbers.length);
+					
+					// 선택된 숫자를 결과 배열에 추가하고, 원본 배열에서 제거
+					pickedNumbers.push(availableNumbers[randomIndex]);
+					availableNumbers.splice(randomIndex, 1);
+				}
+
+				// D. 오름차순 정렬
+				pickedNumbers.sort((a, b) => a - b); 
+
+				// E. HTML 결과에 추가
+				const numSpans = pickedNumbers.map(num => 
+					`<span class="lotto-ball" style="background-color: ${getColorByRange(num)}; color: #121212;">${num}</span>`
+				).join('');
+				
+				htmlResult += `
+					<div style="margin-bottom: 8px; display: flex; align-items: center;">
+						<span style="display: inline-block; width: 80px; font-style: italic; color: #BB86FC;">${game} 게임:</span>
+						<div>${numSpans}</div>
+					</div>
+				`;
+			}
+			
+			// 4. 최종 결과 표시
+			resultDiv.innerHTML = `<div style="padding-bottom: 5px;">🎉 **추첨 결과 (${gameCount} 게임)**</div>${htmlResult}`;
+
+			
+			// 5. 로또 번호 색상 반환 함수 (한국 로또 기준)
+			function getColorByRange(num) {
+				if (num >= 1 && num <= 10) return '#FBC400'; // 노랑
+				if (num >= 11 && num <= 20) return '#69C8F2'; // 파랑
+				if (num >= 21 && num <= 30) return '#FF7272'; // 빨강
+				if (num >= 31 && num <= 40) return '#AAAAAA'; // 회색
+				if (num >= 41 && num <= 45) return '#B0D840'; // 초록
+				return '#FFFFFF';
+			}
+		}
+		
+	
+	
+		
     </script>
 </body>
 </html>
