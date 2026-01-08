@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>웹채팅</title>
+    <title>W/C</title>
     <style>
-        /* 다크 모드 스타일 유지 */
+        /* 다크 모드 및 레이아웃 스타일 */
         body { 
             font-family: Arial, sans-serif; 
             padding: 20px;
@@ -14,37 +14,112 @@
         h1 { color: #BB86FC; }
         
         #settings-area { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
-        #room-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        
+        /* 💡 핵심: #room-controls 중앙 정렬 및 flexbox 설정 */
+        #room-controls { 
+            margin-bottom: 10px; 
+            display: flex; 
+            gap: 10px; 
+            align-items: center; /* 수직 중앙 정렬 */
+        } 
+        
         #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        
+        /* 채팅/접속자 컨테이너 */
+        #chat-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
         #chat-area { 
+            flex-grow: 1; 
             height: 300px; 
             border: 1px solid #333; 
             background-color: #1E1E1E;
             overflow-y: scroll; 
             padding: 10px; 
-            margin-bottom: 10px;
+        }
+
+        /* 접속자 목록 스타일 */
+        #user-list-area {
+            width: 150px; 
+            height: 300px;
+            border: 1px solid #333;
+            background-color: #1E1E1E;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        #user-list-area h3 {
+            margin-top: 0;
+            color: #BB86FC;
+            font-size: 1em;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+
+        #user-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #user-list li {
+            margin-bottom: 3px;
+            word-break: break-all;
         }
         
         .system-msg { color: #888; font-style: italic; }
         .error-msg { color: #CF6679; font-weight: bold; }
         .user-msg { margin-bottom: 5px; }
 
-        /* 입력 필드 디자인 */
-        input[type="text"], input[type="password"], input[type="number"] {
+        /* 입력 필드 디자인 (높이 및 너비 고정) */
+        input[type="password"], input[type="text"] {
             padding: 8px;
             border: 1px solid #555;
             background-color: #333;
             color: #E0E0E0;
             border-radius: 4px;
+            
+            /* 높이 고정 */
+            height: 38px; 
+            box-sizing: border-box; 
+            margin: 0; /* 정렬 방해 마진 제거 */
+            
+            /* 너비 고정 */
+            max-width: 150px; 
+            width: 100%; 
         }
+		
+		input[type="number"] {
+            padding: 8px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #E0E0E0;
+            border-radius: 4px;
+            
+            /* 높이 고정 */
+            height: 38px; 
+            box-sizing: border-box; 
+            margin: 0; /* 정렬 방해 마진 제거 */
+            
+            /* 너비 고정 */
+            max-width: 50px; 
+            width: 100%; 
+        }
+		
         input[type="color"] {
             border: 1px solid #555;
             border-radius: 4px;
-            height: 34px; 
+            height: 38px; 
+            box-sizing: border-box; 
         }
         
         /* 버튼 디자인 */
         button {
+            height: 38px; 
             padding: 8px 15px;
             border: none;
             border-radius: 4px;
@@ -52,19 +127,41 @@
             color: white;
             cursor: pointer;
             transition: background-color 0.3s;
+            box-sizing: border-box;
+            margin: 0; /* 정렬 방해 마진 제거 */
         }
         button:hover:not(:disabled) { background-color: #903EFF; }
         button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         
-        #message-input { flex-grow: 1; }
-        #room-id, #room-password { flex-grow: 1; }
+        #message-input { 
+			flex-grow: 1; 
+			max-width: none; /* 💡 전역 제한 해제 */
+			width: auto; /* 💡 flexbox에 맞춰 자동으로 너비 조정 */
+		}
+        #room-id, #room-password { max-width: 200px; }
         
-        /* 💡 닉네임 입력 그룹 스타일 */
-        #nickname-group { display: flex; gap: 5px; align-items: center; }
+        /* 닉네임 그룹 스타일 */
+        #nickname-group { 
+            display: flex; 
+            gap: 5px; 
+            align-items: center; 
+            /* 너비 고정 */
+            max-width: 200px; 
+            width: 100%; 
+        }
+        #nickname-group input { /* 닉네임 입력 필드는 그룹 내에서만 유연하게 */
+             max-width: none; 
+        }
+		
+		#nickname-update-btn {
+			width: 120px; /* 원하는 폭으로 설정 (예: 120px) */
+			/* padding을 명시적으로 재설정할 필요는 없습니다. */
+		}
+		
     </style>
 </head>
 <body>
-    <h1>Web Chat</h1>
+    <h1>W/C</h1>
     
     <div id="settings-area">
         <label for="font-size">글꼴 크기 (px):</label>
@@ -81,8 +178,8 @@
         <input type="password" id="room-password" placeholder="비밀번호 (생성 시 설정/입장 시 입력)">
         
         <div id="nickname-group">
-            <input type="text" id="nickname" placeholder="닉네임 (필수)" style="flex-grow: 1;">
-            <button onclick="updateNickname()" id="nickname-update-btn" disabled>닉네임 변경</button>
+            <input type="text" id="nickname" placeholder="닉네임 (필수)" style="width: 100%;">
+            <button onclick="updateNickname()" id="nickname-update-btn" disabled>닉변경</button>
         </div>
         
         <button onclick="connectWebSocket()" id="join-btn">방 생성/입장</button>
@@ -90,12 +187,25 @@
 
     <hr>
 
-    <div id="chat-area"></div>
+    <div id="chat-container">
+        <div id="chat-area"></div>
+        
+        <div id="user-list-area">
+            <h3>접속자 (<span id="user-count">0</span>명)</h3>
+            <ul id="user-list">
+                </ul>
+        </div>
+    </div>
     
     <div id="message-controls">
         <input type="text" id="message-input" placeholder="메시지 입력" disabled>
         <button onclick="sendMessage()" disabled id="send-btn">전송</button>
     </div>
+
+	<div id="info-text">
+        "이 W/C는 대화내용을 수집하지 않으며, 채팅내용도 보호되지 않습니다."
+    </div>
+
 
     <script>
         let ws;
@@ -113,9 +223,14 @@
         const fontSizeInput = document.getElementById('font-size');
         const colorPicker = document.getElementById('color-picker');
         const styleUpdateBtn = document.getElementById('style-update-btn');
-        const nicknameUpdateBtn = document.getElementById('nickname-update-btn'); // 💡 새 DOM 요소
+        const nicknameUpdateBtn = document.getElementById('nickname-update-btn'); 
         
-        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com';
+        const userList = document.getElementById('user-list');
+        const userCount = document.getElementById('user-count');
+        
+        // 💡 주의: 배포 시에는 'wss://ujuuu-chat-app.onrender.com'으로 변경해야 합니다.
+		// 💡 주의:  'ws://localhost:8080'으로 변경해야 합니다.
+        const defaultWsUrl = 'wss://ujuuu-chat-app.onrender.com'; 
 
         function displayMessage(message, type = 'user-msg', style = {}) {
             const msgElement = document.createElement('div');
@@ -132,21 +247,30 @@
             chatArea.appendChild(msgElement);
             chatArea.scrollTop = chatArea.scrollHeight;
         }
+        
+        function updateUserList(users) {
+            userList.innerHTML = '';
+            userCount.textContent = users.length;
+            
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.textContent = user.nickname;
+                li.style.color = user.style ? user.style.color : '#E0E0E0'; 
+                userList.appendChild(li);
+            });
+        }
 
         function toggleControls(isConnected) {
             messageInput.disabled = !isConnected;
             sendBtn.disabled = !isConnected;
             
-            // 스타일 설정 활성화/비활성화
             fontSizeInput.disabled = !isConnected; 
             colorPicker.disabled = !isConnected;
             styleUpdateBtn.disabled = !isConnected; 
             
-            // 💡 닉네임 입력 필드와 변경 버튼은 접속 후 활성화
             nicknameInput.disabled = !isConnected;
             nicknameUpdateBtn.disabled = !isConnected;
 
-            // 방 접속 정보는 접속 후에 비활성화
             roomIdInput.disabled = isConnected;
             passwordInput.disabled = isConnected;
             joinBtn.disabled = isConnected;
@@ -193,14 +317,17 @@
                     ws.close();
                 } else if (data.type === 'chat') {
                     displayMessage(data.text, 'user-msg', data.style || {});
+                } 
+                else if (data.type === 'user_list') {
+                    updateUserList(data.users);
                 }
             };
 
             ws.onclose = function(event) {
                 displayMessage(`[시스템] 연결이 해제되었습니다.`, 'system-msg');
-                // 💡 연결 해제 시 닉네임 입력 필드는 다시 활성화 (새 접속을 위해)
                 nicknameInput.disabled = false;
                 toggleControls(false);
+                updateUserList([]);
             };
 
             ws.onerror = function(error) {
@@ -209,7 +336,6 @@
             };
         }
         
-        // 💡 새로운 함수: 닉네임 변경
         function updateNickname() {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
                 alert("채팅방에 먼저 접속해야 합니다.");
@@ -223,14 +349,14 @@
             }
             
             const oldNickname = userNickname;
-            userNickname = newNickname; // 로컬 닉네임 먼저 업데이트
+            userNickname = newNickname; 
             
-            // 서버에 닉네임 변경 알림
             const updateRequest = {
                 type: 'update_nickname',
                 payload: {
                     oldNickname: oldNickname,
-                    newNickname: newNickname
+                    newNickname: newNickname,
+                    style: userStyle 
                 }
             };
             ws.send(JSON.stringify(updateRequest));
@@ -266,7 +392,7 @@
                 const chatMessage = {
                     type: 'chat',
                     payload: {
-                        nickname: userNickname, // 💡 항상 최신 닉네임 사용
+                        nickname: userNickname,
                         text: messageText,
                         style: userStyle 
                     }
@@ -276,14 +402,11 @@
             }
         }
         
-        // 엔터 키로 메시지 전송 기능 추가
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                // 닉네임 입력창에 포커스가 있다면 닉네임 변경 버튼 클릭
                 if (document.activeElement === nicknameInput && !nicknameUpdateBtn.disabled) {
                     updateNickname();
                 } 
-                // 메시지 입력창에 포커스가 있다면 메시지 전송
                 else if (document.activeElement === messageInput) {
                     sendMessage();
                 }
