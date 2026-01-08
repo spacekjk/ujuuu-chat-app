@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>비밀번호 방 익명 웹 채팅</title>
+    <style>
+        /* 간단한 스타일 */
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #room-controls, #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+        #chat-area { 
+            height: 300px; 
+            border: 1px solid #ccc; 
+            overflow-y: scroll; 
+            padding: 10px; 
+            margin-bottom: 10px;
+        }
+        .system-msg { color: gray; font-style: italic; }
+        .error-msg { color: red; font-weight: bold; }
+        #message-input { flex-grow: 1; }
+        #room-id, #room-password, #nickname { flex-grow: 1; }
+    </style>
+</head>
+<body>
+    <h1>비밀번호 방 익명 웹 채팅</h1>
+    
+    <div id="room-controls">
+        <input type="text" id="room-id" placeholder="채팅방 ID (필수)">
+        <input type="password" id="room-password" placeholder="비밀번호 (생성 시 설정/입장 시 입력)">
+        <input type="text" id="nickname" placeholder="닉네임 (필수)">
+        <button onclick="connectWebSocket()" id="join-btn">방 생성/입장</button>
+    </div>
+
+    <hr>
+
+    <div id="chat-area"></div>
+    
+    <div id="message-controls">
+        <input type="text" id="message-input" placeholder="메시지 입력" disabled>
+        <button onclick="sendMessage()" disabled id="send-btn">전송</button>
+    </div>
+
+    <script>
+        let ws;
+        let userNickname = '';
+        const roomIdInput = document.getElementById('room-id');
+        const passwordInput = document.getElementById('room-password');
+        const nicknameInput = document.getElementById('nickname');
+        const joinBtn = document.getElementById('join-btn');
+        const messageInput = document.getElementById('message-input');
+        const chatArea = document.getElementById('chat-area');
+        const sendBtn = document.getElementById('send-btn');
+        const defaultWsUrl = 'ws://localhost:8080';
+
+        function displayMessage(message, type = 'user-msg') {
+            const msgElement = document.createElement('div');
+            msgElement.classList.add(type);
+            msgElement.textContent = message;
+            chatArea.appendChild(msgElement);
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        function toggleControls(isConnected) {
+            messageInput.disabled = !isConnected;
+            sendBtn.disabled = !isConnected;
+            roomIdInput.disabled = isConnected;
+            passwordInput.disabled = isConnected;
+            nicknameInput.disabled = isConnected;
+            joinBtn.disabled = isConnected;
+        }
+
+        function connectWebSocket() {
+            const roomId = roomIdInput.value.trim();
+            const password = passwordInput.value.trim();
+            const nickname = nicknameInput.value.trim();
+            
+            if (!roomId || !nickname) {
+                alert('채팅방 ID와 닉네임을 반드시 입력해야 합니다.');
+                return;
+            }
+            userNickname = nickname;
+            
+            ws = new WebSocket(defaultWsUrl);
+
+            ws.onopen = function(e) {
+                // 서버에 방 입장/생성 요청을 JSON 형식으로 전송
+                const joinRequest = {
+                    type: 'join',
+                    payload: {
+                        roomId: roomId,
+                        password: password,
+                        nickname: userNickname
+                    }
+                };
+                ws.send(JSON.stringify(joinRequest));
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'join_success') {
+                    displayMessage(`[시스템] ${data.message} 채팅을 시작하세요.`, 'system-msg');
+                    toggleControls(true); // 성공 시 UI 활성화
+                } else if (data.type === 'error') {
+                    displayMessage(`[오류] ${data.message}`, 'error-msg');
+                    ws.close(); // 오류 발생 시 연결 해제
+                } else if (data.type === 'chat') {
+                    displayMessage(data.text);
+                }
+            };
+
+            ws.onclose = function(event) {
+                displayMessage(`[시스템] 연결이 해제되었습니다.`, 'system-msg');
+                toggleControls(false); // 연결 해제 시 UI 비활성화
+            };
+
+            ws.onerror = function(error) {
+                displayMessage(`[시스템] 오류가 발생했습니다: ${error.message}`, 'error-msg');
+                toggleControls(false);
+            };
+        }
+
+        function sendMessage() {
+            const messageText = messageInput.value.trim();
+            
+            if (ws && ws.readyState === WebSocket.OPEN && messageText) {
+                // 메시지를 JSON 형식으로 서버에 전송
+                const chatMessage = {
+                    type: 'chat',
+                    payload: {
+                        nickname: userNickname,
+                        text: messageText
+                    }
+                };
+                ws.send(JSON.stringify(chatMessage));
+                messageInput.value = '';
+            }
+        }
+        
+        // 엔터 키로 메시지 전송 기능 추가
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
