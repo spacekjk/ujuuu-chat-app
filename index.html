@@ -3,21 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <title>비밀번호 방 익명 웹 채팅</title>
-    <style>
-        /* 간단한 스타일 */
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        #room-controls, #message-controls { margin-bottom: 10px; display: flex; gap: 10px; }
+	<style>
+        /* 다크 모드 스타일 시작 */
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px;
+            /* 💡 핵심: 배경을 검은색, 텍스트를 흰색으로 변경 */
+            background-color: #121212; /* 아주 어두운 회색 (AMOLED 블랙에 가까움) */
+            color: #E0E0E0; /* 밝은 회색 텍스트 */
+        }
+        h1 {
+            color: #BB86FC; /* 강조색을 사용하여 제목 강조 */
+        }
+        
+        #room-controls, #message-controls { 
+            margin-bottom: 10px; 
+            display: flex; 
+            gap: 10px; 
+        }
         #chat-area { 
             height: 300px; 
-            border: 1px solid #ccc; 
+            /* 💡 채팅 영역 배경 및 테두리 조정 */
+            border: 1px solid #333; 
+            background-color: #1E1E1E;
             overflow-y: scroll; 
             padding: 10px; 
             margin-bottom: 10px;
         }
-        .system-msg { color: gray; font-style: italic; }
-        .error-msg { color: red; font-weight: bold; }
+        
+        /* 시스템/오류 메시지 색상 조정 */
+        .system-msg { color: #888; font-style: italic; }
+        .error-msg { color: #CF6679; font-weight: bold; } /* 다크 모드 오류색 */
+        .user-msg { margin-bottom: 5px; }
+
+        /* 입력 필드 (input) 디자인 */
+        input[type="text"], input[type="password"] {
+            padding: 8px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #E0E0E0;
+            border-radius: 4px;
+        }
+        
+        /* 버튼 (button) 디자인 */
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background-color: #6200EE; /* 다크 모드 강조색 */
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #903EFF;
+        }
+        button:disabled {
+            background-color: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+        
         #message-input { flex-grow: 1; }
         #room-id, #room-password, #nickname { flex-grow: 1; }
+        /* 다크 모드 스타일 끝 */
     </style>
 </head>
 <body>
